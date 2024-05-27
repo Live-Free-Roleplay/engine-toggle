@@ -2,7 +2,7 @@ fx_version 'adamant'
 games { 'gta5' }
 
 author 'Musiker15 - MSK Scripts'
-name 'msk_enginetoggle'
+name 'engine-toggle'
 description 'EngineToggle for Vehicles'
 version '3.8'
 

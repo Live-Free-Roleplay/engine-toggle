@@ -8,19 +8,11 @@ CreateThread(function()
 	while true do
 		local sleep = 200
 
-		if Config.enableLockpick and Config.LockpickKey.enable then
-			sleep = 0
-
-			if IsControlJustReleased(0, Config.LockpickKey.key) then
-				TriggerServerEvent('msk_enginetoggle:hasItem')
-			end
-		end
-
 		if Config.Hotkey.enable and Config.Hotkey.key and IsPedInAnyVehicle(PlayerPedId()) and (GetPedInVehicleSeat(GetVehiclePedIsIn(PlayerPedId()), -1) == PlayerPedId()) then
 			sleep = 0
 
 			if IsControlJustReleased(0, Config.Hotkey.key) then
-				TriggerEvent('msk_enginetoggle:Engine')
+				TriggerEvent('engine-toggle:Engine')
 			end
 		end
 
@@ -55,8 +47,8 @@ CreateThread(function()
 	end
 end)
 
-RegisterNetEvent('msk_enginetoggle:Engine')
-AddEventHandler('msk_enginetoggle:Engine', function(isAdmin)
+RegisterNetEvent('engine-toggle:Engine')
+AddEventHandler('engine-toggle:Engine', function(isAdmin)
 	local veh
 	local StateIndex
 
@@ -79,9 +71,9 @@ AddEventHandler('msk_enginetoggle:Engine', function(isAdmin)
 
 	if not veh or not DoesEntityExist(veh) then return end
 
-	if Config.VehicleKeyChain and (GetResourceState("VehicleKeyChain") == "started") then
+	if Config.VehicleKeys then
 		local isVehicle, isPlate = false, false
-		local isVehicleOrKeyOwner = exports["VehicleKeyChain"]:IsVehicleOrKeyOwner(veh)
+		local isVehicleOrKeyOwner = exports.wasabi_carlock:HasKey(GetVehicleNumberPlateText(veh))
 
 		for k, v in pairs(Config.Whitelist.vehicles) do 
 			if GetHashKey(v) == GetEntityModel(veh) then
@@ -123,8 +115,8 @@ AddEventHandler('msk_enginetoggle:Engine', function(isAdmin)
     end 
 end)
 
-RegisterNetEvent('msk_enginetoggle:RPDamage')
-AddEventHandler('msk_enginetoggle:RPDamage', function(State)
+RegisterNetEvent('engine-toggle:RPDamage')
+AddEventHandler('engine-toggle:RPDamage', function(State)
 	RPWorking = State
 end)
 
@@ -147,104 +139,6 @@ if Config.OnAtEnter then
 		end
 	end)
 end
-
-RegisterNetEvent('msk_enginetoggle:hotwire')
-AddEventHandler('msk_enginetoggle:hotwire', function()
-	local playerPed = PlayerPedId()
-	local coords = GetEntityCoords(playerPed)
-	local animTime = Config.ProgessBar.time * 1000
-	
-	if IsAnyVehicleNearPoint(coords.x, coords.y, coords.z, 5.0) then
-		local vehicle
-		local animation
-		local chance = math.random(100)
-
-		if IsPedInAnyVehicle(playerPed, false) then
-			vehicle = GetVehiclePedIsIn(playerPed, false)
-			animation = {dict = Config.Animation.insideVehicle.dict, anim = Config.Animation.insideVehicle.anim}
-		else
-			vehicle = GetClosestVehicle(coords.x, coords.y, coords.z, 2.0, 0, 71)
-			animation = {dict = Config.Animation.outsideVehicle.dict, anim = Config.Animation.outsideVehicle.anim}
-		end
-
-		if DoesEntityExist(vehicle) then
-			if chance <= Config.Probability.alarm then
-				SetVehicleAlarm(vehicle, true)
-				StartVehicleAlarm(vehicle)
-			end
-
-			if not Config.Animation.InsideOutsideAnimation then
-				TaskStartScenarioInPlace(playerPed, Config.Animation.InsideOutsideAnimation, 0, true)
-				FreezeEntityPosition(playerPed, true)
-			elseif Config.Animation.InsideOutsideAnimation then
-				loadAnimDict(animation.dict)
-				TaskPlayAnim(playerPed, animation.dict, animation.anim, 8.0, 1.0, -1, 49, 0, false, false, false)
-				FreezeEntityPosition(playerPed, true)
-			end
-
-			CreateThread(function()
-				if Config.ProgessBar.enable then
-					Config.progressBar(animTime, Translation[Config.Locale]['hotwiring'])
-				end
-				Wait(animTime)
-
-				if chance <= Config.Probability.lockpick then
-					SetVehicleDoorsLocked(vehicle, 1)
-					SetVehicleDoorsLockedForAllPlayers(vehicle, false)
-					FreezeEntityPosition(playerPed, false)
-					ClearPedTasksImmediately(playerPed)
-					Config.Notification(nil, Translation[Config.Locale]['vehicle_unlocked'])
-				else
-					TriggerServerEvent('msk_enginetoggle:delhotwire')
-					FreezeEntityPosition(playerPed, false)
-					ClearPedTasksImmediately(playerPed)
-					Config.Notification(nil, Translation[Config.Locale]['hotwiring_failed'])
-					return
-				end
-
-				Wait(500)
-
-				if GetVehicleDoorLockStatus(vehicle) == 1 then
-					SetVehicleNeedsToBeHotwired(vehicle, true)
-				else
-					IsVehicleNeedsToBeHotwired(vehicle)
-				end
-
-				TaskEnterVehicle(playerPed, vehicle, 10.0, -1, 1.0, 1, 0)
-				Wait(5000)
-
-				if (not DoesEntityExist(vehicle)) then
-					return
-				end
-
-				if Config.VehicleKeyChain and (GetResourceState("VehicleKeyChain") == "started") then
-					local vehicle2 = GetVehiclePedIsIn(playerPed, false)
-					local plate = GetVehicleNumberPlateText(vehicle2)
-
-					if Config.Probability.enableSearchKey then
-						if chance <= Config.Probability.searchKey then
-							TriggerServerEvent('msk_enginetoggle:addcarkeys', plate)
-						else
-							Config.Notification(nil, Translation[Config.Locale]['hotwiring_notfoundkey'])
-						end
-					else
-						TriggerServerEvent('msk_enginetoggle:addcarkeys', plate)
-					end
-
-					Wait(200)
-
-					if Config.startEngine then
-						TriggerEvent('msk_enginetoggle:Engine')
-					end
-				else
-					if Config.startEngine then
-						TriggerEvent('msk_enginetoggle:Engine')
-					end
-				end
-			end)
-		end
-	end
-end)
 
 if Config.SaveSteeringAngle then
 	local pressed = 1 * 1000
@@ -284,7 +178,7 @@ if Config.SaveSteeringAngle then
 
 							if vehNetId then
 								SetNetworkIdExistsOnAllMachines(vehNetId, true)
-								TriggerServerEvent('msk_enginetoggle:async', vehNetId, steeringAngle)
+								TriggerServerEvent('engine-toggle:async', vehNetId, steeringAngle)
 							end
 						end
 
@@ -297,8 +191,8 @@ if Config.SaveSteeringAngle then
 		end
 	end)
 	
-	RegisterNetEvent("msk_enginetoggle:syncanglesave")
-	AddEventHandler("msk_enginetoggle:syncanglesave", function(vehNetId, steeringAngle)
+	RegisterNetEvent("engine-toggle:syncanglesave")
+	AddEventHandler("engine-toggle:syncanglesave", function(vehNetId, steeringAngle)
 		if not NetworkDoesEntityExistWithNetworkId(vehNetId) then return end
 		local vehicle = NetToVeh(vehNetId)
 
@@ -320,7 +214,7 @@ if Config.SaveSteeringAngle then
 					local vehNetId = VehToNet(vehicle)
 
 					if GetPedInVehicleSeat(vehicle, -1) == playerPed and not justDeleted and GetIsVehicleEngineRunning(vehicle) and vehNetId then
-						TriggerServerEvent("msk_enginetoggle:angledelete", vehNetId)
+						TriggerServerEvent("engine-toggle:angledelete", vehNetId)
 						justDeleted = true
 					end
 				else
